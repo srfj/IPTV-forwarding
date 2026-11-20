@@ -1,0 +1,14 @@
+#!/bin/bash
+# DSM preinst
+set -e
+
+PKG_NAME="${SYNOPKG_PKGNAME:-$(basename "$(cd "$(dirname "$0")/.." && pwd)")}"
+
+echo "[preinst] $PKG_NAME"
+
+if [ -r /etc/VERSION ]; then
+    . /etc/VERSION
+    echo "[preinst] DSM ${productversion:-unknown} (${majorversion:-?}.${minorversion:-?})"
+fi
+
+exit 0

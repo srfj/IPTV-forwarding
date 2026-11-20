@@ -1,0 +1,10 @@
+#!/bin/bash
+# DSM preun
+set -e
+
+PKG_NAME="${SYNOPKG_PKGNAME:-$(basename "$(cd "$(dirname "$0")/.." && pwd)")}"
+
+echo "[preun] $PKG_NAME"
+"$(dirname "$0")/start-stop-status" stop 2>/dev/null || true
+
+exit 0

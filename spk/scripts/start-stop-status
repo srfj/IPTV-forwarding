@@ -1,0 +1,137 @@
+#!/bin/bash
+# DSM start-stop-status
+# DSMPKG 会以 start / stop / status 调用本脚本
+
+PKG_NAME="${SYNOPKG_PKGNAME:-$(basename "$(cd "$(dirname "$0")/.." && pwd)")}"
+PKG_DIR="/var/packages/$PKG_NAME"
+TARGET="$PKG_DIR/target"
+VAR="$PKG_DIR/var"
+ETC="$PKG_DIR/etc"
+BIN="$TARGET/bin/iptv-zt-bridge"
+MODE_FILE="$TARGET/bin/mode"
+LOG="$VAR/log/iptv-zt-bridge.log"
+PID_FILE="$VAR/iptv-zt-bridge.pid"
+
+if [ -f "$MODE_FILE" ]; then
+    MODE=$(cat "$MODE_FILE")
+else
+    case "$PKG_NAME" in
+        *Client*|*client*) MODE=client ;;
+        *) MODE=server ;;
+    esac
+fi
+
+running_pid() {
+    if [ -f "$PID_FILE" ]; then
+        local p
+        p=$(cat "$PID_FILE" 2>/dev/null)
+        if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+            echo "$p"
+            return 0
+        fi
+    fi
+    local p
+    p=$(pgrep -f "$TARGET/bin/iptv-zt-bridge" 2>/dev/null | head -1)
+    [ -n "$p" ] && echo "$p" && return 0
+    return 1
+}
+
+case "$1" in
+    start)
+        echo "[start] $PKG_NAME (mode=$MODE)"
+
+        if PID=$(running_pid); then
+            echo "[start] already running (pid=$PID)"
+            exit 0
+        fi
+
+        mkdir -p "$VAR/log" "$VAR/zerotier" "$VAR/rtp2httpd" "$ETC"
+
+        if [ ! -e /dev/net/tun ]; then
+            mkdir -p /dev/net 2>/dev/null || true
+            mknod /dev/net/tun c 10 200 2>/dev/null || true
+            chmod 666 /dev/net/tun 2>/dev/null || true
+        fi
+        # DSM 可能缺少 modules.dep，modprobe 失败时回退 insmod
+        modprobe tun 2>/dev/null || true
+        for m in /lib/modules/tun.ko /lib/modules/*/tun.ko \
+                 /lib/modules/*/kernel/drivers/net/tun.ko \
+                 /usr/lib/modules/*/kernel/drivers/net/tun.ko; do
+            [ -f "$m" ] && insmod "$m" 2>/dev/null || true
+        done
+        if [ ! -c /dev/net/tun ]; then
+            echo "[start] WARNING: /dev/net/tun 不可用，ZeroTier 将无法创建虚拟网卡"
+        fi
+
+        if [ ! -x "$BIN" ]; then
+            echo "[start] ERROR: $BIN not executable"
+            exit 1
+        fi
+
+        chmod +x "$TARGET/bin/"* 2>/dev/null || true
+
+        cd "$VAR" || exit 1
+        nohup "$BIN" \
+            -mode "$MODE" \
+            -config "$ETC/config.yaml" \
+            -web-root "$TARGET/web" \
+            -data-dir "$VAR" \
+            >> "$LOG" 2>&1 &
+
+        echo $! > "$PID_FILE"
+        sleep 2
+
+        if PID=$(running_pid); then
+            echo "[start] started (pid=$PID)"
+            exit 0
+        fi
+
+        echo "[start] ERROR: failed to start, last log:"
+        tail -n 30 "$LOG" 2>/dev/null || true
+        exit 1
+        ;;
+
+    stop)
+        echo "[stop] $PKG_NAME"
+
+        if PID=$(running_pid); then
+            kill "$PID" 2>/dev/null || true
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+                kill -0 "$PID" 2>/dev/null || break
+                sleep 1
+            done
+            kill -9 "$PID" 2>/dev/null || true
+            echo "[stop] stopped (pid=$PID)"
+        else
+            echo "[stop] not running"
+        fi
+
+        # 兜底清理内置子进程
+        pkill -f "$TARGET/bin/iptv-zt-bridge" 2>/dev/null || true
+        pkill -f "$TARGET/bin/zerotier-one" 2>/dev/null || true
+        pkill -f "$TARGET/bin/rtp2httpd" 2>/dev/null || true
+
+        rm -f "$PID_FILE"
+        exit 0
+        ;;
+
+    status)
+        if PID=$(running_pid); then
+            echo "[status] running (pid=$PID)"
+            exit 0
+        fi
+        echo "[status] stopped"
+        exit 1
+        ;;
+
+    restart)
+        "$0" stop
+        sleep 1
+        "$0" start
+        ;;
+
+    *)
+        echo "Usage: $0 {start|stop|status|restart}"
+        exit 1
+        ;;
+esac

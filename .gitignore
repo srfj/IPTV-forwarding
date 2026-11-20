@@ -1,0 +1,17 @@
+# 构建产物
+build/
+dist/
+*.fpk
+*.spk
+
+# 运行时数据
+data/
+var/
+*.log
+
+# 本地缓存 / 上传文件
+.uploads/
+.DS_Store
+
+# 上游参考源码（rtp2httpd 由 Makefile 从官方 Release 下载二进制）
+third_party/

@@ -1,0 +1,30 @@
+#!/bin/bash
+# DSM postun
+# 注意：DSM 升级时也会经过卸载流程的一部分，因此这里必须区分
+# 升级(UPGRADE)与真正卸载(UNINSTALL)，只在卸载时清除配置。
+set -e
+
+PKG_NAME="${SYNOPKG_PKGNAME:-$(basename "$(cd "$(dirname "$0")/.." && pwd)")}"
+PKG_DIR="/var/packages/$PKG_NAME"
+VAR="$PKG_DIR/var"
+ETC="$PKG_DIR/etc"
+STATUS="${SYNOPKG_PKG_STATUS:-UNINSTALL}"
+
+echo "[postun] $PKG_NAME status=$STATUS"
+
+# 清理可能残留的 ZT / rtp2httpd 进程
+pkill -f "$PKG_DIR/target/bin/iptv-zt-bridge" 2>/dev/null || true
+pkill -f "$PKG_DIR/target/bin/zerotier-one" 2>/dev/null || true
+pkill -f "$PKG_DIR/target/bin/rtp2httpd" 2>/dev/null || true
+
+if [ "$STATUS" = "UPGRADE" ]; then
+    echo "[postun] 升级流程，保留配置与数据"
+    exit 0
+fi
+
+# 真正卸载：清除配置、数据（含 ZeroTier 身份、上传的频道源、日志）
+echo "[postun] 清除配置与数据: $ETC/config.yaml $VAR"
+rm -f "$ETC/config.yaml"
+rm -rf "$VAR"
+
+exit 0

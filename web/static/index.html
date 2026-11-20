@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IPTV-ZT-Bridge</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1020;--bg2:#1a1b36;--bg3:#252747;
+  --text:#e0e0e0;--muted:#888;
+  --accent:#00d4ff;--accent2:#7b2ff7;--success:#22c55e;--warn:#f59e0b;--danger:#ef4444;
+  --border:rgba(255,255,255,0.08);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg);color:var(--text);min-height:100vh}
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:16px 24px;
+  display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:36px;height:36px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font-size:20px}
+h1{font-size:18px;font-weight:600}
+.mode-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;
+  background:rgba(0,212,255,0.15);color:var(--accent)}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;
+  margin-right:6px}
+.status-dot.on{background:var(--success);box-shadow:0 0 8px var(--success)}
+.status-dot.off{background:var(--danger)}
+.container{max-width:1200px;margin:24px auto;padding:0 24px;display:grid;gap:20px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px}
+.card h2{font-size:15px;margin-bottom:18px;display:flex;align-items:center;gap:10px;
+  padding-bottom:12px;border-bottom:1px solid var(--border)}
+.card h2 .icon{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:16px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.stat{background:var(--bg3);border-radius:8px;padding:16px;text-align:center}
+.stat-label{font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+.stat-value{font-size:24px;font-weight:600}
+.stat-value.online{color:var(--success)}
+.stat-value.offline{color:var(--danger)}
+.row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.row:last-child{margin-bottom:0}
+.row label{width:120px;font-size:13px;color:var(--muted);flex-shrink:0}
+.row .val{flex:1;font-size:13px;font-family:monospace;background:var(--bg3);padding:8px 12px;
+  border-radius:6px;word-break:break-all;border:1px solid var(--border)}
+.row input,.row select{flex:1;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px}
+.row input:focus,.row select:focus{outline:none;border-color:var(--accent)}
+.btn{padding:8px 16px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);cursor:pointer;font-size:13px;transition:all .15s}
+.btn:hover{background:var(--border)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:disabled:hover{background:var(--bg3)}
+.btn-primary{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none}
+.btn-primary:hover{opacity:0.9}
+.btn-danger{background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.3);color:var(--danger)}
+.btn:active{transform:scale(.95)}
+.btn-copy{min-width:84px}
+.btn-copy.copied{background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.5);color:#4ade80}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.m3u-preview{background:#0a0a15;border:1px solid var(--border);border-radius:8px;
+  padding:16px;font-family:monospace;font-size:12px;max-height:300px;overflow:auto;
+  white-space:pre-wrap;word-break:break-all}
+.section{margin-top:20px}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500}
+.tag-live{background:rgba(34,197,94,0.15);color:var(--success)}
+.tag-dead{background:rgba(239,68,68,0.15);color:var(--danger)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:500;padding:8px 12px;
+  border-bottom:1px solid var(--border);font-size:12px;text-transform:uppercase;letter-spacing:1px}
+td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.04)}
+tr:hover td{background:rgba(255,255,255,0.02)}
+@media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
+.tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border)}
+.tab{padding:10px 20px;cursor:pointer;font-size:13px;color:var(--muted);
+  border-bottom:2px solid transparent}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);
+  display:none;align-items:center;justify-content:center;z-index:200}
+.overlay.show{display:flex}
+.overlay .box{background:var(--bg2);border-radius:12px;padding:32px;max-width:400px;text-align:center}
+.hint{background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);
+  border-radius:8px;padding:12px 16px;font-size:13px;color:var(--warn);margin-top:12px}
+.logout{color:var(--muted);cursor:pointer;font-size:13px}
+.logout:hover{color:var(--danger)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.cg{border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0;background:var(--bg2)}
+.cg-head{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.cg-head input{flex:1}
+.cg-row{display:flex;gap:8px;margin:6px 0;align-items:center}
+.cg-row input{flex:1}
+.cg-content{width:100%;margin-top:6px;font-family:monospace;font-size:12px;line-height:1.6;
+  resize:vertical;min-height:110px}
+.cg-empty{font-size:12px;color:var(--muted);padding:4px 2px}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <h1>IPTV-ZT-Bridge</h1>
+    <span class="mode-badge" id="modeBadge">Server</span>
+    <span class="mode-badge" id="verBadge" style="opacity:.7">v-</span>
+  </div>
+  <div>
+    <span class="logout" onclick="doLogout()">退出登录</span>
+  </div>
+</div>
+
+<div class="container">
+  <!-- 服务总开关 -->
+  <div class="card">
+    <h2><span class="icon">⚡</span> 服务总开关</h2>
+    <div class="grid-2">
+      <div class="stat">
+        <div class="stat-label">服务状态</div>
+        <div class="stat-value" id="svcState"><span class="status-dot off"></span>未启动</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">必要参数</div>
+        <div class="stat-value" id="svcParams" style="font-size:16px">-</div>
+      </div>
+    </div>
+    <div class="hint" id="svcHint" style="display:none"></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="svcStartBtn" onclick="serviceStart()" disabled>启动服务</button>
+      <button class="btn btn-danger" id="svcStopBtn" onclick="serviceStop()" style="display:none">停止服务</button>
+    </div>
+  </div>
+
+  <!-- ZeroTier 状态 -->
+  <div class="card">
+    <h2><span class="icon">🛰️</span> ZeroTier 网络状态</h2>
+    <div class="grid-3">
+      <div class="stat">
+        <div class="stat-label">运行状态</div>
+        <div class="stat-value" id="ztRunStatus"><span class="status-dot off"></span>停止</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">网络在线</div>
+        <div class="stat-value" id="ztOnline"><span class="status-dot off"></span>离线</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">节点数</div>
+        <div class="stat-value" id="ztPeers">0</div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="row"><label>成员 ID</label><div class="val" id="ztMember">-</div></div>
+      <div class="row"><label>虚拟 IP</label><div class="val" id="ztVip">-</div></div>
+      <div class="row"><label>网络 ID</label><div class="val" id="ztNetID">-</div></div>
+      <div class="row"><label>TUN 模式</label><div class="val" id="ztTun">-</div></div>
+      <div class="hint" id="ztHint" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- 内置 rtp2httpd（仅服务端套件） -->
+  <div class="card" id="rtpCard" style="display:none">
+    <h2><span class="icon">🔀</span> 内置 rtp2httpd</h2>
+    <div class="grid-3">
+      <div class="stat">
+        <div class="stat-label">运行状态</div>
+        <div class="stat-value" id="rtpRun"><span class="status-dot off"></span>停止</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">PID</div>
+        <div class="stat-value" id="rtpPid">-</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">监听地址</div>
+        <div class="stat-value" id="rtpListen" style="font-size:14px">-</div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="row"><label>频道源 M3U</label><div class="val" id="rtpSource">-</div></div>
+      <div class="row"><label>输出列表</label><div class="val" id="rtpPlaylist">-</div></div>
+      <div class="hint" id="rtpHint" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- 模式信息 & 列表统计 -->
+  <div class="grid-2">
+    <div class="card">
+      <h2><span class="icon">⚙️</span> 运行模式</h2>
+      <div class="row">
+        <label>当前模式</label>
+        <div class="val" id="modeText">-</div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px" id="modeDesc">
+        运行模式由安装的套件决定：Server 套件内置 rtp2httpd，Client 套件仅做代理转发。
+      </p>
+    </div>
+    <div class="card">
+      <h2><span class="icon">📺</span> 播放列表</h2>
+      <div class="grid-3" style="gap:12px">
+        <div class="stat"><div class="stat-label">总频道</div><div class="stat-value" id="plTotal">0</div></div>
+        <div class="stat"><div class="stat-label">存活</div><div class="stat-value online" id="plAlive">0</div></div>
+        <div class="stat"><div class="stat-label">失效</div><div class="stat-value offline" id="plDead">0</div></div>
+      </div>
+      <div class="actions">
+        <button class="btn" onclick="refreshPlaylist()">刷新列表</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 配置 Tab -->
+  <div class="card">
+    <h2><span class="icon">🔧</span> 服务配置</h2>
+    <div class="tabs">
+      <div class="tab active" data-tab="common">通用</div>
+      <div class="tab" data-tab="server">Server 配置</div>
+      <div class="tab" data-tab="client">Client 配置</div>
+      <div class="tab" data-tab="security">安全</div>
+    </div>
+
+    <!-- 通用配置 -->
+    <div class="tab-content" data-content="common">
+      <div class="row"><label>ZeroTier 网络 ID *</label>
+        <input id="cfgZtNetID" placeholder="例：8056c2e21c000001"></div>
+      <div class="row"><label>ZT 数据目录</label><input id="cfgZtDataDir"></div>
+    </div>
+
+    <!-- Server 配置 -->
+    <div class="tab-content" data-content="server" style="display:none">
+      <div class="row"><label>频道源 M3U *</label>
+        <input id="cfgM3UFile" type="file" accept=".m3u,.m3u8,text/plain"
+               onchange="uploadM3U()" style="padding:6px">
+      </div>
+      <div class="row"><label>已上传文件</label><div class="val" id="cfgRtpSource">未上传</div></div>
+      <div class="row"><label>rtp2httpd 监听 *</label>
+        <input id="cfgRtpListen" placeholder="127.0.0.1:8080"></div>
+      <div class="row"><label>对外监听 *</label><input id="cfgServerListen" placeholder="0.0.0.0:8081"></div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">
+        上传运营商原始频道列表（支持 rtp:// 组播地址）。内置 rtp2httpd 会转换为 HTTP 流，
+        再由本套件加 Token 后通过 ZeroTier 对外提供。上传新文件后会自动重启 rtp2httpd 生效。
+      </p>
+    </div>
+
+    <!-- Client 配置 -->
+    <div class="tab-content" data-content="client" style="display:none">
+      <div class="row"><label>本地播放端口</label><div class="val">8086（固定）</div></div>
+      <div class="row"><label>已发现服务端</label><div class="val" id="clientServer">尚未发现</div></div>
+      <div class="row"><label>发现状态</label><div class="val" id="clientDiscover">-</div></div>
+      <div class="row"><label>本机播放列表</label><div class="val" id="clientM3U">-</div></div>
+      <div class="row"><label>上游超时(秒)</label><input id="cfgUpstreamTimeout" type="number"></div>
+      <div class="row"><label>自定义分类</label>
+        <div class="val" id="customSummary">未添加</div>
+        <button class="btn btn-sm" onclick="addCustomGroup()">+ 添加分类</button>
+      </div>
+      <div id="customGroups"></div>
+      <p class="hint" style="display:block">
+        自定义分类会追加在原同步列表之后，一起下发给播放器；频道地址原样输出
+        （三网通用地址直连，不经本套件代理）。
+      </p>
+      <p class="hint" style="display:block">
+        客户端只需在「通用」中填写 ZeroTier 网络 ID。服务端地址与 Token 会在隧道连通后自动发现，
+        并在本机 8086 端口生成播放列表，供电视直播软件使用。
+      </p>
+    </div>
+
+    <!-- 安全配置 -->
+    <div class="tab-content" data-content="security" style="display:none">
+      <div class="row"><label>访问 Token</label>
+        <div class="val" id="cfgToken">-</div></div>
+      <div class="row"><label>手动填写 Token</label>
+        <input id="cfgTokenInput" placeholder="留空则保持当前 Token；填写后覆盖"></div>
+      <div class="row"><label>WebUI 用户</label><input id="cfgWebUser"></div>
+      <div class="row"><label>WebUI 密码</label><input id="cfgWebPass" type="password"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="saveConfig()">保存配置</button>
+      <button class="btn" onclick="regenToken()">重新生成 Token</button>
+    </div>
+  </div>
+
+  <!-- m3u 预览 -->
+  <div class="card">
+    <h2><span class="icon">📄</span> 输出 M3U 预览</h2>
+    <div class="row">
+      <label>M3U 地址</label>
+      <div class="val" id="m3uURL">-</div>
+      <button class="btn btn-copy" onclick="copyM3U(this)">复制</button>
+    </div>
+    <div class="m3u-preview" id="m3uPreview"># 加载中...</div>
+  </div>
+
+  <!-- 流监控 -->
+  <div class="card">
+    <h2><span class="icon">📊</span> 流转发状态</h2>
+    <div class="row">
+      <label>当前活跃代理</label>
+      <div class="val" id="proxyActive">0</div>
+    </div>
+    <div class="row">
+      <label>当前模式</label>
+      <div class="val" id="modeInfo">-</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 确认弹窗 -->
+<div class="overlay" id="overlay"><div class="box">
+  <h3 style="margin-bottom:16px" id="overlayTitle">确认操作</h3>
+  <p style="margin-bottom:24px;color:var(--muted)" id="overlayMsg"></p>
+  <div style="display:flex;gap:10px;justify-content:center">
+    <button class="btn" onclick="closeOverlay()">取消</button>
+    <button class="btn btn-primary" id="overlayBtn" onclick="">确认</button>
+  </div>
+</div></div>
+
+<script>
+let session = null;
+let config = null;
+let refreshInterval = null;
+let mode = 'server';
+let uploadedPath = '';
+let serviceRunning = false;
+
+async function api(path, opts={}){
+  const h={'Content-Type':'application/json'};
+  if(session) h['X-Session']=session;
+  const r=await fetch('/api'+path,{...opts,headers:h});
+  if(r.status===401){location.href='/login.html';return null}
+  const t=await r.text();
+  return t?JSON.parse(t):null;
+}
+
+async function init(){
+  const r=await api('/status');
+  if(!r) return;
+  await loadConfig();
+  applyStatus(r);
+  refreshInterval=setInterval(refreshAll,10000);
+}
+
+function isEditing(){
+  const a=document.activeElement;
+  return a && (a.tagName==='INPUT'||a.tagName==='SELECT'||a.tagName==='TEXTAREA');
+}
+
+async function refreshAll(){
+  // 后台标签页、正在输入时不打扰用户
+  if(document.hidden||isEditing()) return;
+  const s=await api('/status');
+  if(s) applyStatus(s);
+  const pl=await api('/playlist');
+  if(pl) updatePlaylist(pl);
+}
+
+function applyStatus(s){
+  document.getElementById('modeBadge').textContent=s.mode?.toUpperCase()||'-';
+  document.getElementById('verBadge').textContent=s.version?'v'+s.version:'v-';
+  document.getElementById('modeBadge').style.background=
+    s.mode==='server'?'rgba(34,197,94,0.15)':'rgba(245,158,11,0.15)';
+  document.getElementById('modeText').textContent=
+    s.mode==='server'?'Server（服务端，内置 rtp2httpd）':'Client（客户端，本地代理）';
+  document.getElementById('modeDesc').textContent=
+    s.mode==='server'
+      ?'Server 套件：内置 rtp2httpd 将运营商 rtp 源转为 HTTP，加 Token 后经 ZeroTier 对外发布。'
+      :'Client 套件：从服务端拉取 m3u，重写为本地代理地址，供电视直接播放。';
+
+  document.getElementById('rtpCard').style.display = s.mode==='server'?'block':'none';
+  if(s.rtp2httpd){
+    const r=s.rtp2httpd;
+    document.getElementById('rtpRun').innerHTML=
+      `<span class="status-dot ${r.running?'on':'off'}"></span>${r.running?'运行中':'停止'}`;
+    document.getElementById('rtpPid').textContent=r.pid||'-';
+    document.getElementById('rtpListen').textContent=r.listen_addr||'-';
+    document.getElementById('rtpSource').textContent=r.source_m3u||'未配置';
+    document.getElementById('rtpPlaylist').textContent=r.playlist_url||'-';
+    const hint=document.getElementById('rtpHint');
+    if(r.last_error){
+      hint.style.display='block';
+      hint.textContent='错误：'+r.last_error;
+    }else{
+      hint.style.display='none';
+    }
+  }
+
+  document.getElementById('ztRunStatus').innerHTML=
+    `<span class="status-dot ${s.zt_status?.running?'on':'off'}"></span>${s.zt_status?.running?'运行中':'停止'}`;
+  document.getElementById('ztOnline').innerHTML=
+    `<span class="status-dot ${s.zt_status?.network_online?'on':'off'}"></span>${s.zt_status?.network_online?'在线':'离线'}`;
+  document.getElementById('ztPeers').textContent=s.zt_status?.peers||0;
+  document.getElementById('ztMember').textContent=s.zt_status?.member_address||'-';
+  document.getElementById('ztVip').textContent=(s.zt_status?.virtual_addresses||[]).join(', ')||'-';
+  document.getElementById('ztNetID').textContent=s.zt_status?.network_id||'-';
+  const zh=document.getElementById('ztHint');
+  let zhMsg='';
+  if(s.zt_status?.running&&!s.zt_status?.tun_mode){
+    zhMsg='ZeroTier 未创建虚拟网卡（/dev/net/tun 不可用）：'+
+      (s.zt_status?.tun_error||'未知原因')+'。此时无法访问对端虚拟 IP，请检查 NAS 的 tun 模块。';
+  }else if(s.zt_status?.last_error){
+    zhMsg=s.zt_status.last_error;
+  }
+  if(zhMsg){zh.style.display='block';zh.textContent=zhMsg;}else{zh.style.display='none';}
+  if(s.mode==='client'){
+    const addr=s.client?.server_addr||'';
+    document.getElementById('clientServer').textContent=addr||'尚未发现';
+    document.getElementById('clientDiscover').textContent=s.client?.discover||'-';
+    document.getElementById('clientM3U').textContent=s.client?.local_m3u||'-';
+    if(s.client?.local_m3u) document.getElementById('m3uURL').textContent=s.client.local_m3u;
+  }
+  document.getElementById('ztTun').textContent=s.zt_status?.tun_mode?'启用'+(s.zt_status?.fallback_used?' (回落用户态)':''):'用户态';
+  document.getElementById('plTotal').textContent=s.playlist?.total||0;
+  document.getElementById('plAlive').textContent=s.playlist?.alive||0;
+  document.getElementById('plDead').textContent=(s.playlist?.total||0)-(s.playlist?.alive||0);
+  document.getElementById('proxyActive').textContent=s.streaming?.active_proxies||0;
+  document.getElementById('modeInfo').textContent=s.mode?.toUpperCase()||'-';
+
+  serviceRunning = !!s.service?.running;
+  document.getElementById('svcState').innerHTML=
+    `<span class="status-dot ${serviceRunning?'on':'off'}"></span>${serviceRunning?'运行中':'未启动'}`;
+  applyServiceButtons();
+}
+
+function applyServiceButtons(){
+  document.getElementById('svcStartBtn').style.display=serviceRunning?'none':'inline-block';
+  document.getElementById('svcStopBtn').style.display=serviceRunning?'inline-block':'none';
+  validateForm();
+}
+
+async function loadConfig(){
+  const c=await api('/config');
+  if(!c) return;
+  config=c;
+  mode = c.mode || 'server';
+  document.getElementById('cfgZtNetID').value=c.zerotier?.network_id||'';
+  document.getElementById('cfgZtDataDir').value=c.zerotier?.data_dir||'';
+  uploadedPath = c.rtp2httpd?.source_m3u||'';
+  document.getElementById('cfgRtpSource').textContent=
+    uploadedPath ? uploadedPath.split('/').pop() : '未上传';
+  document.getElementById('cfgRtpListen').value=c.rtp2httpd?.listen_addr||'127.0.0.1:8080';
+  document.getElementById('cfgServerListen').value=c.server?.listen_addr||'';
+  document.getElementById('cfgUpstreamTimeout').value=c.client?.upstream_timeout||30;
+  customGroups=(c.client?.custom_groups||[]).map(g=>({
+    name:g.name||'',
+    content:g.content||''
+  }));
+  renderCustomGroups();
+  document.getElementById('cfgTokenInput').value='';
+  document.getElementById('cfgToken').textContent=c.token?'******** (已设置)':'未设置';
+  document.getElementById('cfgWebUser').value=c.web?.username||'admin';
+  document.getElementById('cfgWebPass').value='';
+
+  // 仅显示当前套件对应的配置页
+  document.querySelectorAll('.tab').forEach(t=>{
+    if(t.dataset.tab==='server'||t.dataset.tab==='client'){
+      t.style.display=(t.dataset.tab===c.mode)?'block':'none';
+    }
+  });
+  updateM3UInfo(c);
+  validateForm();
+}
+
+function updateM3UInfo(c){
+  const port=c.mode==='client'?'8086':((c.server?.listen_addr||'').split(':').pop()||'8081');
+  const path=c.mode==='client'?(c.client?.m3u_path||'/live.m3u'):(c.server?.m3u_path||'/live.m3u');
+  document.getElementById('m3uURL').textContent=`http://<IP>:${port}${path}?token=${c.token||''}`;
+}
+
+async function updatePlaylist(pl){
+  document.getElementById('plTotal').textContent=pl.count||0;
+  let dead=0;
+  const alive=(pl.entries||[]).filter(e=>e.alive).length;
+  document.getElementById('plAlive').textContent=alive;
+  document.getElementById('plDead').textContent=(pl.count||0)-alive;
+  let preview='#EXTM3U\\n';
+  for(const e of (pl.entries||[]).slice(0,30)){
+    dead+=e.alive?0:1;
+    let u=e.processed_url||e.original_url||'';
+    if(u.startsWith('/')) u=location.origin+u;
+    preview+=`#EXTINF:-1 group-title="${e.group||''}",${e.name}\\n${u}\\n`;
+  }
+  if((pl.entries||[]).length>30) preview+='# ... 还有更多...\\n';
+  document.getElementById('m3uPreview').textContent=preview.replace(/\\\\n/g,'\\n');
+}
+
+async function saveConfig(silent){
+  const patch={
+    zerotier:{network_id:document.getElementById('cfgZtNetID').value,
+              data_dir:document.getElementById('cfgZtDataDir').value},
+    rtp2httpd:{listen_addr:document.getElementById('cfgRtpListen').value},
+    server:{listen_addr:document.getElementById('cfgServerListen').value},
+    client:{upstream_timeout:parseInt(document.getElementById('cfgUpstreamTimeout').value)||30,
+            custom_groups:cleanCustomGroups()},
+    web:{username:document.getElementById('cfgWebUser').value}
+  };
+  const pass=document.getElementById('cfgWebPass').value;
+  if(pass) patch.web.password=pass;
+  const tok=cval('cfgTokenInput');
+  if(tok) patch.token=tok;
+  const r=await api('/config',{method:'PUT',body:JSON.stringify(patch)});
+  if(!r) return false;
+  config=r;updateM3UInfo(r);validateForm();
+  if(!silent) alert('配置已保存。');
+  return true;
+}
+
+function cval(id){
+  const el=document.getElementById(id);
+  return el?(el.value||'').trim():'';
+}
+
+// ---- 自定义分类（客户端） ----
+let customGroups=[];
+
+function escHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,c=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function cleanCustomGroups(){
+  return customGroups
+    .map(g=>({name:(g.name||'').trim(),content:(g.content||'').trim()}))
+    .filter(g=>g.name&&g.content);
+}
+
+function countChannels(content){
+  return (content||'').split('\n').filter(l=>/^(https?|rtsp|rtmp|udp|rtp):\/\//i.test(l.trim())||/,\s*(https?|rtsp|rtmp|udp|rtp):\/\//i.test(l)).length;
+}
+
+function renderCustomGroups(){
+  const box=document.getElementById('customGroups');
+  if(!box) return;
+  let html='';
+  customGroups.forEach((g,gi)=>{
+    html+=`<div class="cg">
+      <div class="cg-head">
+        <input placeholder="分类名称，如：三网备用" value="${escHtml(g.name)}"
+               oninput="customGroups[${gi}].name=this.value">
+        <button class="btn btn-sm" onclick="removeCustomGroup(${gi})">删除分类</button>
+      </div>
+      <textarea class="cg-content" placeholder="#EXTINF:-1,频道名&#10;http://example.com/live.m3u8&#10;&#10;也支持每行：频道名,http://...">${escHtml(g.content)}</textarea>
+    </div>`;
+  });
+  box.innerHTML=html;
+  // 用事件委托同步 textarea 内容，避免每敲一个字就重建 DOM 丢失焦点
+  box.querySelectorAll('.cg-content').forEach((ta,gi)=>{
+    ta.addEventListener('input',()=>{customGroups[gi].content=ta.value;});
+  });
+  const n=customGroups.length;
+  const ch=customGroups.reduce((a,g)=>a+countChannels(g.content),0);
+  document.getElementById('customSummary').textContent=
+    n? `${n} 个分类 / ${ch} 个频道` : '未添加';
+}
+
+function addCustomGroup(){
+  customGroups.push({name:'',content:''});
+  renderCustomGroups();
+}
+
+function removeCustomGroup(gi){
+  customGroups.splice(gi,1);
+  renderCustomGroups();
+}
+
+function requiredMissing(){
+  const miss=[];
+  if(!cval('cfgZtNetID')) miss.push('ZeroTier 网络 ID');
+  if(mode==='server'){
+    if(!uploadedPath) miss.push('频道源 M3U（请上传）');
+    if(!cval('cfgRtpListen')) miss.push('rtp2httpd 监听地址');
+    if(!cval('cfgServerListen')) miss.push('对外监听地址');
+  }
+  // 客户端只需网络 ID，其余参数自动发现
+  return miss;
+}
+
+function validateForm(){
+  const miss=requiredMissing();
+  const params=document.getElementById('svcParams');
+  params.textContent=miss.length?`缺少 ${miss.length} 项`:'已完整';
+  params.className='stat-value '+(miss.length?'offline':'online');
+
+  const hint=document.getElementById('svcHint');
+  if(serviceRunning||!miss.length){
+    hint.style.display='none';
+  }else{
+    hint.style.display='block';
+    hint.textContent='请先填写必要参数：'+miss.join('、');
+  }
+  document.getElementById('svcStartBtn').disabled=serviceRunning||miss.length>0;
+}
+
+async function serviceStart(){
+  const miss=requiredMissing();
+  if(miss.length){alert('缺少必要参数：\n- '+miss.join('\n- '));return}
+  if(!await saveConfig(true)) return;
+
+  const btn=document.getElementById('svcStartBtn');
+  btn.disabled=true;btn.textContent='启动中...';
+  const r=await api('/service/start',{method:'POST'});
+  btn.textContent='启动服务';
+  if(!r){validateForm();return}
+  if(r.error){
+    let msg=r.error;
+    if(r.missing&&r.missing.length) msg+='：\n- '+r.missing.join('\n- ');
+    alert(msg);validateForm();return;
+  }
+  await refreshAll();
+  validateForm();
+}
+
+async function serviceStop(){
+  if(!confirm('确认停止服务？停止后电视将无法播放')) return;
+  const r=await api('/service/stop',{method:'POST'});
+  if(r&&r.error){alert(r.error);return}
+  await refreshAll();
+  validateForm();
+}
+
+async function uploadM3U(){
+  const input=document.getElementById('cfgM3UFile');
+  const f=input.files&&input.files[0];
+  if(!f) return;
+
+  const fd=new FormData();
+  fd.append('file',f);
+  const r=await fetch('/api/upload/m3u',{method:'POST',body:fd});
+  if(r.status===401){location.href='/login.html';return}
+  const t=await r.text();
+  let j=null;
+  try{j=t?JSON.parse(t):null}catch(e){}
+  if(!j||j.error){alert((j&&j.error)||'上传失败');input.value='';return}
+
+  uploadedPath=j.path;
+  if(!config) config={};
+  if(!config.rtp2httpd) config.rtp2httpd={};
+  config.rtp2httpd.source_m3u=j.path;
+  document.getElementById('cfgRtpSource').textContent=j.name||'channels.m3u';
+  validateForm();
+  alert(j.restarted?'频道源已上传，rtp2httpd 已重启':'频道源已上传');
+}
+
+async function regenToken(){
+  if(!confirm('确认重新生成 Token？这会使旧的 m3u 链接失效，客户端需同步更新')) return;
+  const r=await api('/api-key',{method:'POST'});
+  if(r){alert('新 Token: '+r.token);config.token=r.token;updateM3UInfo(config)}
+}
+
+async function refreshPlaylist(){
+  await api('/playlist/refresh',{method:'POST'});
+  alert('已请求刷新');
+}
+
+// 复制按钮统一反馈：按下缩放 + 短暂变绿并显示对号 ✓
+function flashCopied(btn,label){
+  if(!btn) return;
+  if(!btn.dataset.label) btn.dataset.label=label||btn.textContent;
+  btn.classList.add('copied');
+  btn.textContent='✓';
+  clearTimeout(btn._t);
+  btn._t=setTimeout(()=>{
+    btn.classList.remove('copied');
+    btn.textContent=btn.dataset.label;
+  },1500);
+}
+
+function fallbackCopy(s){
+  const ta=document.createElement('textarea');
+  ta.value=s;
+  ta.style.position='fixed';
+  ta.style.top='-1000px';
+  ta.style.opacity='0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0,s.length);
+  try{document.execCommand('copy')}catch(e){}
+  ta.remove();
+}
+
+function copyText(s){
+  if(!s) return;
+  // http 明文页面下 navigator.clipboard 不可用（非安全上下文），必须回退
+  if(navigator.clipboard&&window.isSecureContext){
+    navigator.clipboard.writeText(s).catch(()=>fallbackCopy(s));
+    return;
+  }
+  fallbackCopy(s);
+}
+
+function copyM3U(btn){
+  const s=(document.getElementById('m3uURL').textContent||'').trim();
+  if(!s||s==='-') return;
+  copyText(s);
+  flashCopied(btn,'复制');
+}
+
+
+async function doLogout(){
+  await api('/logout',{method:'POST'});
+  location.href='/login.html';
+}
+
+// Tabs
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');
+    t.classList.add('active');
+    document.querySelector(`.tab-content[data-content="${t.dataset.tab}"]`).style.display='block';
+  };
+});
+
+// 表单变化时实时校验必填项
+['cfgZtNetID','cfgRtpListen','cfgServerListen','cfgUpstreamTimeout']
+  .forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('input',validateForm);
+  });
+
+// 检查会话，初始化（session cookie 为 HttpOnly，无法由 JS 读取，仅依赖服务端校验）
+fetch('/api/status').then(r=>{
+  if(r.status===401){location.href='/login.html';return}
+  init();
+});
+</script>
+</body>
+</html>
